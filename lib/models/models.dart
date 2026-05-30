@@ -106,34 +106,46 @@ class AppSettings {
   final String telegramApiId;
   final String telegramApiHash;
   final String botUsername;
+  final String botToken;
+  final String localTelegramServer;
   final String downloadPath;
   final bool streamingQuality;
   final bool autoPlay;
+  final String phone;
 
   const AppSettings({
     this.telegramApiId = '',
     this.telegramApiHash = '',
     this.botUsername = '',
+    this.botToken = '',
+    this.localTelegramServer = '',
     this.downloadPath = '',
     this.streamingQuality = true,
     this.autoPlay = true,
+    this.phone = '',
   });
 
   AppSettings copyWith({
     String? telegramApiId,
     String? telegramApiHash,
     String? botUsername,
+    String? botToken,
+    String? localTelegramServer,
     String? downloadPath,
     bool? streamingQuality,
     bool? autoPlay,
+    String? phone,
   }) {
     return AppSettings(
       telegramApiId: telegramApiId ?? this.telegramApiId,
       telegramApiHash: telegramApiHash ?? this.telegramApiHash,
       botUsername: botUsername ?? this.botUsername,
+      botToken: botToken ?? this.botToken,
+      localTelegramServer: localTelegramServer ?? this.localTelegramServer,
       downloadPath: downloadPath ?? this.downloadPath,
       streamingQuality: streamingQuality ?? this.streamingQuality,
       autoPlay: autoPlay ?? this.autoPlay,
+      phone: phone ?? this.phone,
     );
   }
 
@@ -146,17 +158,23 @@ class AppSettings {
         'telegramApiId': telegramApiId,
         'telegramApiHash': telegramApiHash,
         'botUsername': botUsername,
+        'botToken': botToken,
+        'localTelegramServer': localTelegramServer,
         'downloadPath': downloadPath,
         'streamingQuality': streamingQuality,
         'autoPlay': autoPlay,
+        'phone': phone,
       };
 
   factory AppSettings.fromJson(Map<String, dynamic> json) => AppSettings(
         telegramApiId: json['telegramApiId'] ?? '',
         telegramApiHash: json['telegramApiHash'] ?? '',
         botUsername: json['botUsername'] ?? '',
+        botToken: json['botToken'] ?? '',
+        localTelegramServer: json['localTelegramServer'] ?? '',
         downloadPath: json['downloadPath'] ?? '',
         streamingQuality: json['streamingQuality'] ?? true,
         autoPlay: json['autoPlay'] ?? true,
+        phone: json['phone'] ?? '',
       );
 }

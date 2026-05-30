@@ -68,7 +68,8 @@ class TrackDownloadCard extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: item.progress,
                 backgroundColor: AppTheme.borderColor,
-                valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.accentGreen),
+                valueColor:
+                    const AlwaysStoppedAnimation<Color>(AppTheme.accentGreen),
                 minHeight: 4,
               ),
             ),
@@ -101,7 +102,7 @@ class TrackDownloadCard extends StatelessWidget {
       case DownloadStatus.failed:
         return Colors.redAccent.withValues(alpha: 0.4);
       case DownloadStatus.downloading:
-        return AppTheme.accentCyan.withValues(alpha: 0.3);
+        return AppTheme.accentGreen.withValues(alpha: 0.3);
       default:
         return AppTheme.borderColor;
     }
@@ -159,7 +160,7 @@ class _StatusIcon extends StatelessWidget {
         break;
       case DownloadStatus.downloading:
         icon = Icons.download_rounded;
-        color = AppTheme.accentCyan;
+        color = AppTheme.accentGreen;
         animated = true;
         break;
       case DownloadStatus.completed:

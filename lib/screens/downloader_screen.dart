@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../main.dart';
@@ -20,6 +21,8 @@ class _DownloaderScreenState extends State<DownloaderScreen> {
   final List<String> _logMessages = [];
   bool _isProcessing = false;
   bool _showLog = false;
+
+  static const String _unknownPlaylistFolder = 'Playlist';
 
   @override
   void dispose() {
@@ -48,19 +51,45 @@ class _DownloaderScreenState extends State<DownloaderScreen> {
       _downloads.clear();
     });
 
+    final rootDir = await TelegramService.getDownloadRootDirectory();
+    final meta = await TelegramService.resolveSpotifyRequestMeta(url);
+
+    String? fixedFolderName;
+    if (meta.type == SpotifyLinkType.playlist) {
+      fixedFolderName = TelegramService.sanitizePathPart(
+        meta.playlistName ?? _unknownPlaylistFolder,
+      );
+    }
+
+    final seenDestinations = <String>{};
+
     await TelegramService.sendSpotifyLink(
       spotifyUrl: url,
       onTrackReady: (track) {
+        final targetDir = _targetDirectoryForTrack(
+          track: track,
+          rootDir: rootDir,
+          linkType: meta.type,
+          playlistFolderName: fixedFolderName,
+        );
+        final filename = TelegramService.buildTrackFilename(track);
+        final savePath = '${targetDir.path}/$filename';
+
+        if (seenDestinations.contains(savePath)) {
+          return;
+        }
+        seenDestinations.add(savePath);
+
         final item = DownloadItem(
           id: track.id,
-          filename: '${track.title} - ${track.artist}.mp3',
+          filename: filename,
           spotifyUrl: url,
-          savePath: '/storage/emulated/0/Music/Ispatipay/',
+          savePath: savePath,
         );
         if (mounted) {
           setState(() => _downloads.add(item));
         }
-        _downloadTrack(item, track);
+        _downloadTrack(item, track, targetDir.path);
       },
       onMessage: (msg) {
         if (mounted) {
@@ -76,11 +105,33 @@ class _DownloaderScreenState extends State<DownloaderScreen> {
     );
   }
 
-  Future<void> _downloadTrack(DownloadItem item, Track track) async {
+  Directory _targetDirectoryForTrack({
+    required Track track,
+    required Directory rootDir,
+    required SpotifyLinkType linkType,
+    String? playlistFolderName,
+  }) {
+    switch (linkType) {
+      case SpotifyLinkType.album:
+        final artistFolder = TelegramService.sanitizePathPart(track.artist);
+        return Directory('${rootDir.path}/$artistFolder');
+      case SpotifyLinkType.playlist:
+        final playlistFolder = playlistFolderName ??
+            TelegramService.sanitizePathPart(_unknownPlaylistFolder);
+        return Directory('${rootDir.path}/$playlistFolder');
+      case SpotifyLinkType.track:
+      case SpotifyLinkType.unknown:
+        return rootDir;
+    }
+  }
+
+  Future<void> _downloadTrack(
+      DownloadItem item, Track track, String targetDirectory) async {
     setState(() => item.status = DownloadStatus.downloading);
 
     final path = await TelegramService.downloadTrack(
       track: track,
+      saveDirectoryPath: targetDirectory,
       onProgress: (received, total) {
         if (mounted) {
           setState(() {
@@ -94,7 +145,8 @@ class _DownloaderScreenState extends State<DownloaderScreen> {
 
     if (mounted) {
       setState(() {
-        item.status = path != null ? DownloadStatus.completed : DownloadStatus.failed;
+        item.status =
+            path != null ? DownloadStatus.completed : DownloadStatus.failed;
         item.progress = path != null ? 1.0 : 0;
       });
     }
@@ -125,7 +177,8 @@ class _DownloaderScreenState extends State<DownloaderScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('OK', style: TextStyle(color: AppTheme.accentGreen)),
+            child:
+                const Text('OK', style: TextStyle(color: AppTheme.accentGreen)),
           ),
         ],
       ),
@@ -164,12 +217,11 @@ class _DownloaderScreenState extends State<DownloaderScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppTheme.accentGreen, Color(0xFF00BFA5)],
-              ),
+              color: AppTheme.accentGreen,
               borderRadius: BorderRadius.circular(14),
             ),
-            child: const Icon(Icons.download_rounded, color: Colors.black, size: 24),
+            child: const Icon(Icons.download_rounded,
+                color: Colors.black, size: 24),
           ),
           const SizedBox(width: 14),
           const Expanded(
@@ -183,7 +235,8 @@ class _DownloaderScreenState extends State<DownloaderScreen> {
                       fontWeight: FontWeight.bold,
                     )),
                 Text('Download music via Telegram bot',
-                    style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                    style:
+                        TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
               ],
             ),
           ),
@@ -226,8 +279,8 @@ class _DownloaderScreenState extends State<DownloaderScreen> {
                   onPressed: _pasteFromClipboard,
                 ),
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 16),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               ),
             ),
           ),
@@ -284,9 +337,9 @@ class _DownloaderScreenState extends State<DownloaderScreen> {
       height: 120,
       margin: const EdgeInsets.symmetric(horizontal: 20),
       decoration: BoxDecoration(
-        color: const Color(0xFF0D1117),
+        color: AppTheme.surfaceColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF30363D)),
+        border: Border.all(color: AppTheme.borderColor),
       ),
       child: ListView.builder(
         padding: const EdgeInsets.all(12),

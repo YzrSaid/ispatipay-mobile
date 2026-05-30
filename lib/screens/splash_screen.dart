@@ -104,14 +104,6 @@ class _SplashScreenState extends State<SplashScreen>
                         ),
                       ),
                       SizedBox(height: 8),
-                      Text(
-                        'Spotify · Telegram · Music',
-                        style: TextStyle(
-                          color: AppTheme.textSecondary,
-                          fontSize: 14,
-                          letterSpacing: 2,
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -130,11 +122,7 @@ class _SplashScreenState extends State<SplashScreen>
       width: 100,
       height: 100,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppTheme.accentGreen, AppTheme.accentCyan],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppTheme.accentGreen,
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(

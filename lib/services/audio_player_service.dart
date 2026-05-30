@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:just_audio/just_audio.dart';
 import '../models/models.dart';
 
@@ -19,7 +20,7 @@ class AudioPlayerService {
   Stream<PlayerState> get playerStateStream => _player.playerStateStream;
   Stream<Duration?> get durationStream => _player.durationStream;
   Stream<Duration> get positionStream => _player.positionStream;
-  Stream<int?> get currentIndexStream => _player.currentIndexStream;
+  Stream<int> get currentIndexStream => _currentIndexController.stream;
 
   // Getters
   List<Track> get queue => _queue;
@@ -31,16 +32,24 @@ class AudioPlayerService {
   RepeatMode get repeatMode => _repeatMode;
   bool get shuffleEnabled => _shuffleEnabled;
 
-  Track? get currentTrack =>
-      _currentIndex >= 0 && _currentIndex < _queue.length
-          ? _queue[_currentIndex]
-          : null;
+  final _currentIndexController = StreamController<int>.broadcast();
+
+  Track? get currentTrack => _currentIndex >= 0 && _currentIndex < _queue.length
+      ? _queue[_currentIndex]
+      : null;
 
   // ── Queue Management ───────────────────────────────────────────────
 
   void setQueue(List<Track> tracks) {
+    final currentTrackId = currentTrack?.id;
     _queue = List.from(tracks);
-    _currentIndex = -1;
+    if (currentTrackId != null) {
+      final preservedIndex =
+          _queue.indexWhere((track) => track.id == currentTrackId);
+      _currentIndex = preservedIndex;
+    } else if (_currentIndex >= _queue.length) {
+      _currentIndex = _queue.isEmpty ? -1 : _queue.length - 1;
+    }
   }
 
   void addToQueue(Track track) {
@@ -58,13 +67,27 @@ class AudioPlayerService {
     if (index < 0 || index >= _queue.length) return;
     _currentIndex = index;
     final track = _queue[index];
+    _currentIndexController.add(index);
+
+    print('DEBUG playIndex: localPath=${track.localPath}');
+    print('DEBUG playIndex: streamUrl=${track.streamUrl}');
+    print('DEBUG playIndex: status=${track.status}');
 
     _isLoading = true;
     try {
-      if (track.localPath != null) {
-        await _player.setFilePath(track.localPath!);
-      } else if (track.streamUrl != null) {
-        await _player.setUrl(track.streamUrl!);
+      final localPath = track.localPath;
+      if (localPath != null && localPath.isNotEmpty) {
+        final exists = await File(localPath).exists();
+        if (exists) {
+          await _player.setFilePath(localPath);
+        } else if (track.streamUrl != null && track.streamUrl!.isNotEmpty) {
+          await _player.setUrl(Uri.encodeFull(track.streamUrl!));
+        } else {
+          _isLoading = false;
+          return;
+        }
+      } else if (track.streamUrl != null && track.streamUrl!.isNotEmpty) {
+        await _player.setUrl(Uri.encodeFull(track.streamUrl!));
       } else {
         // Demo mode: use a silent audio or skip
         _isLoading = false;

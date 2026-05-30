@@ -1,15 +1,43 @@
+import 'dart:ffi';
+import 'dart:io';
+
+import 'package:ffi/ffi.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'screens/home_screen.dart';
 import 'screens/splash_screen.dart';
+import 'services/settings_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  _setNumericLocaleToC();
+  JustAudioMediaKit.ensureInitialized();
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+  await SettingsService.load();
   runApp(const IspatipayApp());
+}
+
+void _setNumericLocaleToC() {
+  if (!Platform.isLinux) return;
+
+  try {
+    final setlocale = DynamicLibrary.process().lookupFunction<
+        Pointer<Utf8> Function(Int32, Pointer<Utf8>),
+        Pointer<Utf8> Function(int, Pointer<Utf8>)>('setlocale');
+    const category = 1; // LC_NUMERIC
+    final locale = 'C'.toNativeUtf8();
+    try {
+      setlocale(category, locale);
+    } finally {
+      calloc.free(locale);
+    }
+  } catch (_) {
+    // If this fails, Flutter can still start; the shell fallback remains valid.
+  }
 }
 
 class IspatipayApp extends StatelessWidget {
@@ -31,14 +59,12 @@ class IspatipayApp extends StatelessWidget {
 }
 
 class AppTheme {
-  static const Color bgColor = Color(0xFF0A0A0F);
-  static const Color surfaceColor = Color(0xFF111118);
-  static const Color cardColor = Color(0xFF1A1A24);
+  static const Color bgColor = Color(0xFF121212);
+  static const Color surfaceColor = Color(0xFF181818);
+  static const Color cardColor = Color(0xFF1E1E1E);
   static const Color accentGreen = Color(0xFF1DB954);
-  static const Color accentCyan = Color(0xFF00E5FF);
-  static const Color accentPurple = Color(0xFF7C4DFF);
-  static const Color textPrimary = Color(0xFFFFFFFF);
-  static const Color textSecondary = Color(0xFF9E9E9E);
+  static const Color textPrimary = Color(0xFFF5F5F5);
+  static const Color textSecondary = Color(0xFFB3B3B3);
   static const Color borderColor = Color(0xFF2A2A3A);
 
   static ThemeData get darkTheme {
@@ -48,7 +74,7 @@ class AppTheme {
       colorScheme: const ColorScheme.dark(
         surface: surfaceColor,
         primary: accentGreen,
-        secondary: accentCyan,
+        secondary: accentGreen,
         onSurface: textPrimary,
       ),
       appBarTheme: const AppBarTheme(

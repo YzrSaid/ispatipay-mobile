@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter/services.dart';
+import 'package:just_audio/just_audio.dart';
 import '../main.dart';
 import '../models/models.dart';
 import '../services/telegram_service.dart';
@@ -18,6 +20,7 @@ class PlayerScreen extends StatefulWidget {
 class _PlayerScreenState extends State<PlayerScreen>
     with TickerProviderStateMixin {
   final TextEditingController _urlController = TextEditingController();
+  final AudioPlayerService _audioPlayerService = AudioPlayerService();
 
   final List<Track> _queue = [];
   int _currentIndex = -1;
@@ -31,11 +34,15 @@ class _PlayerScreenState extends State<PlayerScreen>
   // Position tracking
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
-  Timer? _positionTimer;
 
   // Equalizer animation
   late AnimationController _eqController;
   final List<double> _eqBars = List.generate(20, (_) => 0.2);
+
+  StreamSubscription<PlayerState>? _playerStateSub;
+  StreamSubscription<Duration>? _positionSub;
+  StreamSubscription<Duration?>? _durationSub;
+  StreamSubscription<int?>? _indexSub;
 
   // Messages
   final List<String> _messages = [];
@@ -47,15 +54,54 @@ class _PlayerScreenState extends State<PlayerScreen>
       duration: const Duration(milliseconds: 150),
       vsync: this,
     )..addListener(_updateEqualizer);
+    _bindAudioPlayer();
     _startEqTimer();
   }
 
   @override
   void dispose() {
     _urlController.dispose();
-    _positionTimer?.cancel();
+    _playerStateSub?.cancel();
+    _positionSub?.cancel();
+    _durationSub?.cancel();
+    _indexSub?.cancel();
     _eqController.dispose();
     super.dispose();
+  }
+
+  void _bindAudioPlayer() {
+    _playerStateSub = _audioPlayerService.playerStateStream.listen((state) {
+      if (!mounted) return;
+      setState(() {
+        _isPlaying = state.playing;
+        _isPaused = !state.playing &&
+            state.processingState != ProcessingState.idle &&
+            state.processingState != ProcessingState.completed;
+        if (state.processingState == ProcessingState.completed) {
+          _isPlaying = false;
+          _isPaused = false;
+        }
+      });
+
+      if (state.processingState == ProcessingState.completed) {
+        _onTrackEnd();
+      }
+    });
+
+    _positionSub = _audioPlayerService.positionStream.listen((position) {
+      if (!mounted) return;
+      setState(() => _position = position);
+    });
+
+    _durationSub = _audioPlayerService.durationStream.listen((duration) {
+      if (!mounted) return;
+      setState(() => _duration = duration ?? Duration.zero);
+    });
+
+    _indexSub = _audioPlayerService.currentIndexStream.listen((index) {
+      if (!mounted) return;
+      setState(() => _currentIndex = index);
+    });
   }
 
   void _startEqTimer() {
@@ -108,18 +154,25 @@ class _PlayerScreenState extends State<PlayerScreen>
       _position = Duration.zero;
     });
 
+    await _audioPlayerService.stop();
+    _audioPlayerService.clearQueue();
+
     await TelegramService.sendSpotifyLink(
       spotifyUrl: url,
       onTrackReady: (track) {
         if (!mounted) return;
+        final shouldAutoPlay = _currentIndex == -1;
         setState(() {
           _queue.add(track);
-          // Auto-play first track
-          if (_currentIndex == -1) {
+          _audioPlayerService.setQueue(List<Track>.from(_queue));
+          if (shouldAutoPlay) {
             _currentIndex = 0;
-            _simulatePlay(_queue[0]);
           }
         });
+
+        if (shouldAutoPlay) {
+          _audioPlayerService.playIndex(0);
+        }
       },
       onMessage: (msg) {
         if (mounted) setState(() => _messages.add(msg));
@@ -133,80 +186,27 @@ class _PlayerScreenState extends State<PlayerScreen>
     );
   }
 
-  void _simulatePlay(Track track) {
-    setState(() {
-      _isPlaying = true;
-      _isPaused = false;
-      _position = Duration.zero;
-      _duration = track.duration;
-    });
-
-    _positionTimer?.cancel();
-    _positionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      if (!_isPaused) {
-        setState(() {
-          if (_position < _duration) {
-            _position += const Duration(seconds: 1);
-          } else {
-            timer.cancel();
-            _onTrackEnd();
-          }
-        });
-      }
-    });
+  Future<void> _onTrackEnd() async {
+    await _audioPlayerService.next();
   }
 
-  void _onTrackEnd() {
-    if (_repeatMode == RepeatMode.one) {
-      _simulatePlay(_queue[_currentIndex]);
-    } else if (_repeatMode == RepeatMode.all ||
-        _currentIndex < _queue.length - 1) {
-      _nextTrack();
-    } else {
-      setState(() {
-        _isPlaying = false;
-        _isPaused = false;
-      });
-    }
+  Future<void> _togglePlayPause() async {
+    await _audioPlayerService.togglePlayPause();
   }
 
-  void _togglePlayPause() {
-    setState(() => _isPaused = !_isPaused);
-  }
-
-  void _nextTrack() {
+  Future<void> _nextTrack() async {
     if (_queue.isEmpty) return;
-    int next;
-    if (_shuffleEnabled) {
-      next = Random().nextInt(_queue.length);
-    } else if (_repeatMode == RepeatMode.one) {
-      next = _currentIndex;
-    } else {
-      next = (_currentIndex + 1) % _queue.length;
-    }
-    setState(() => _currentIndex = next);
-    _simulatePlay(_queue[next]);
+    await _audioPlayerService.next();
   }
 
-  void _prevTrack() {
+  Future<void> _prevTrack() async {
     if (_queue.isEmpty) return;
-    if (_position.inSeconds > 3) {
-      setState(() => _position = Duration.zero);
-      return;
-    }
-    final prev = _currentIndex > 0 ? _currentIndex - 1 : _queue.length - 1;
-    setState(() => _currentIndex = prev);
-    _simulatePlay(_queue[prev]);
+    await _audioPlayerService.previous();
   }
 
-  void _jumpToTrack(int index) {
+  Future<void> _jumpToTrack(int index) async {
     if (index < 0 || index >= _queue.length) return;
-    setState(() => _currentIndex = index);
-    _simulatePlay(_queue[index]);
+    await _audioPlayerService.playIndex(index);
   }
 
   void _cycleRepeat() {
@@ -223,6 +223,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           break;
       }
     });
+    _audioPlayerService.cycleRepeatMode();
   }
 
   void _showSnack(String msg) {
@@ -286,25 +287,26 @@ class _PlayerScreenState extends State<PlayerScreen>
         ? _queue[_currentIndex]
         : null;
 
-    return Column(
-      children: [
-        _buildHeader(track),
-        if (_isLoading || _messages.isNotEmpty) _buildStatusBanner(),
-        const SizedBox(height: 8),
-        _buildInputRow(),
-        const SizedBox(height: 16),
-        _buildAlbumArt(track),
-        const SizedBox(height: 20),
-        _buildTrackInfo(track),
-        const SizedBox(height: 12),
-        _buildEqualizer(),
-        const SizedBox(height: 16),
-        _buildProgressBar(),
-        const SizedBox(height: 20),
-        _buildControls(),
-        const SizedBox(height: 20),
-        _buildModeButtons(),
-      ],
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        children: [
+          _buildHeader(track),
+          if (_isLoading || _messages.isNotEmpty) _buildStatusBanner(),
+          const SizedBox(height: 8),
+          _buildInputRow(),
+          const SizedBox(height: 16),
+          _buildAlbumArt(track),
+          const SizedBox(height: 20),
+          _buildTrackInfo(track),
+          const SizedBox(height: 12),
+          _buildEqualizer(),
+          const SizedBox(height: 16),
+          _buildProgressBar(),
+          const SizedBox(height: 20),
+          _buildUnifiedControls(),
+        ],
+      ),
     );
   }
 
@@ -316,9 +318,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppTheme.accentPurple, AppTheme.accentCyan],
-              ),
+              color: AppTheme.accentGreen,
               borderRadius: BorderRadius.circular(14),
             ),
             child: const Icon(Icons.headphones_rounded,
@@ -334,10 +334,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                       color: AppTheme.textPrimary,
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
-                    )),
-                Text('Stream via Telegram bot',
-                    style:
-                        TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                    ))
               ],
             ),
           ),
@@ -358,9 +355,9 @@ class _PlayerScreenState extends State<PlayerScreen>
       margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF0D1117),
+        color: AppTheme.surfaceColor,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFF30363D)),
+        border: Border.all(color: AppTheme.borderColor),
       ),
       child: Row(
         children: [
@@ -369,7 +366,7 @@ class _PlayerScreenState extends State<PlayerScreen>
               width: 12,
               height: 12,
               child: CircularProgressIndicator(
-                color: AppTheme.accentCyan,
+                color: AppTheme.accentGreen,
                 strokeWidth: 1.5,
               ),
             ),
@@ -378,7 +375,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             child: Text(
               lastMsg,
               style: const TextStyle(
-                color: Color(0xFF58A6FF),
+                color: AppTheme.textSecondary,
                 fontSize: 11,
                 fontFamily: 'monospace',
               ),
@@ -432,12 +429,7 @@ class _PlayerScreenState extends State<PlayerScreen>
               height: 44,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                gradient: _isLoading
-                    ? null
-                    : const LinearGradient(
-                        colors: [AppTheme.accentGreen, Color(0xFF00BFA5)],
-                      ),
-                color: _isLoading ? AppTheme.borderColor : null,
+                color: _isLoading ? AppTheme.borderColor : AppTheme.accentGreen,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Center(
@@ -456,31 +448,37 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Widget _buildAlbumArt(Track? track) {
+    final hasArt =
+        track?.albumArt != null && File(track!.albumArt!).existsSync();
     return Container(
       width: 180,
       height: 180,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: track != null
-              ? [const Color(0xFF6B2FBF), const Color(0xFF1DB954)]
-              : [const Color(0xFF1A1A2E), const Color(0xFF16213E)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: (track != null ? AppTheme.accentGreen : Colors.black)
-                .withValues(alpha: 0.3),
-            blurRadius: 30,
-            spreadRadius: 5,
-          ),
-        ],
+        color: AppTheme.surfaceColor,
+        border: Border.all(color: AppTheme.borderColor),
       ),
-      child: Icon(
-        track != null ? Icons.music_note_rounded : Icons.library_music_rounded,
-        color: Colors.white.withValues(alpha: 0.9),
-        size: 72,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: hasArt
+            ? Image.file(
+                File(track.albumArt!),
+                fit: BoxFit.cover,
+              )
+            : Container(
+                decoration: BoxDecoration(
+                  color: track != null
+                      ? AppTheme.cardColor
+                      : AppTheme.surfaceColor,
+                ),
+                child: Icon(
+                  track != null
+                      ? Icons.music_note_rounded
+                      : Icons.library_music_rounded,
+                  color: Colors.white.withValues(alpha: 0.9),
+                  size: 72,
+                ),
+              ),
       ),
     );
   }
@@ -531,10 +529,11 @@ class _PlayerScreenState extends State<PlayerScreen>
           Color barColor;
           if (h > 0.7) {
             barColor = AppTheme.accentGreen;
-          } else if (h > 0.4)
-            barColor = AppTheme.accentCyan;
-          else
-            barColor = const Color(0xFF1565C0);
+          } else if (h > 0.4) {
+            barColor = AppTheme.textSecondary;
+          } else {
+            barColor = AppTheme.borderColor;
+          }
 
           return AnimatedContainer(
             duration: const Duration(milliseconds: 100),
@@ -568,18 +567,19 @@ class _PlayerScreenState extends State<PlayerScreen>
               activeTrackColor: AppTheme.accentGreen,
               inactiveTrackColor: AppTheme.borderColor,
               thumbColor: AppTheme.accentGreen,
-              overlayColor: AppTheme.accentGreen.withValues(alpha: 0.2),
+              overlayColor: AppTheme.accentGreen.withValues(alpha: 0.15),
             ),
             child: Slider(
               value: progress.clamp(0.0, 1.0),
               onChanged: _isPlaying
                   ? (val) {
+                      final newPosition = Duration(
+                        milliseconds: (val * _duration.inMilliseconds).round(),
+                      );
                       setState(() {
-                        _position = Duration(
-                          milliseconds:
-                              (val * _duration.inMilliseconds).round(),
-                        );
+                        _position = newPosition;
                       });
+                      _audioPlayerService.seek(newPosition);
                     }
                   : null,
             ),
@@ -603,86 +603,75 @@ class _PlayerScreenState extends State<PlayerScreen>
     );
   }
 
-  Widget _buildControls() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _ControlButton(
-          icon: Icons.skip_previous_rounded,
-          size: 36,
-          onTap: _queue.isNotEmpty ? _prevTrack : null,
-        ),
-        const SizedBox(width: 24),
-        GestureDetector(
-          onTap: _isPlaying ? _togglePlayPause : null,
-          child: Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppTheme.accentGreen, Color(0xFF00BFA5)],
-              ),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.accentGreen.withValues(alpha: 0.4),
-                  blurRadius: 20,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: Icon(
-              _isPaused || !_isPlaying
-                  ? Icons.play_arrow_rounded
-                  : Icons.pause_rounded,
-              color: Colors.black,
-              size: 40,
-            ),
-          ),
-        ),
-        const SizedBox(width: 24),
-        _ControlButton(
-          icon: Icons.skip_next_rounded,
-          size: 36,
-          onTap: _queue.isNotEmpty ? _nextTrack : null,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildModeButtons() {
+  Widget _buildUnifiedControls() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           _ModeButton(
-            icon: _shuffleEnabled
-                ? Icons.shuffle_on_rounded
-                : Icons.shuffle_rounded,
+            icon:
+                _shuffleEnabled ? Icons.shuffle_rounded : Icons.shuffle_rounded,
             label: 'Shuffle',
             isActive: _shuffleEnabled,
-            onTap: () => setState(() => _shuffleEnabled = !_shuffleEnabled),
+            onTap: () {
+              setState(() => _shuffleEnabled = !_shuffleEnabled);
+              _audioPlayerService.toggleShuffle();
+            },
           ),
+          const Spacer(),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _ControlButton(
+                icon: Icons.skip_previous_rounded,
+                size: 36,
+                onTap: _queue.isNotEmpty ? _prevTrack : null,
+              ),
+              const SizedBox(width: 10),
+              GestureDetector(
+                onTap: _isPlaying ? _togglePlayPause : null,
+                child: Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: AppTheme.accentGreen,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.accentGreen.withValues(alpha: 0.4),
+                        blurRadius: 20,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    _isPaused || !_isPlaying
+                        ? Icons.play_arrow_rounded
+                        : Icons.pause_rounded,
+                    color: Colors.black,
+                    size: 40,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              _ControlButton(
+                icon: Icons.skip_next_rounded,
+                size: 36,
+                onTap: _queue.isNotEmpty ? _nextTrack : null,
+              ),
+            ],
+          ),
+          const Spacer(),
           _ModeButton(
             icon: _repeatMode == RepeatMode.one
                 ? Icons.repeat_one_rounded
-                : Icons.repeat_rounded,
-            label: _repeatMode == RepeatMode.off
-                ? 'Repeat'
                 : _repeatMode == RepeatMode.all
-                    ? 'All'
-                    : 'One',
+                    ? Icons.repeat_rounded
+                    : Icons.repeat_rounded,
+            label: 'Repeat',
             isActive: _repeatMode != RepeatMode.off,
             onTap: _cycleRepeat,
           ),
-          if (_queue.isNotEmpty)
-            _ModeButton(
-              icon: Icons.queue_music_rounded,
-              label: '${_queue.length} tracks',
-              isActive: false,
-              onTap: () => setState(() => _showPlaylist = true),
-            ),
         ],
       ),
     );

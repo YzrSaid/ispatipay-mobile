@@ -1,3 +1,5 @@
 {
-  "cmake.sourceDirectory": "/run/media/yazarrr/SAID SSD/files/1_MY_CODES/FLUTTER/ispatipay_mobile_new/ispatipay_flutter/linux"
+  "cmake.sourceDirectory": "/run/media/yazarrr/SAID_SSD/files/1_MY_CODES/FLUTTER/ispatipay_mobile_new/ispatipay_flutter/linux",
+  "java.configuration.updateBuildConfiguration": "interactive",
+  "cSpell.words": ["allprojects"]
 }

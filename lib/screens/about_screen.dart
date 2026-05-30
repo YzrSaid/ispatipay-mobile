@@ -6,6 +6,14 @@ import '../main.dart';
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
 
+  static const String _developerName = 'M.A. Yazar';
+  static const String _developerGithub = 'https://github.com/YzrSaid';
+  static const String _developerPortfolio =
+      'https://ma-said-portfolio.vercel.app/';
+  static const String _developerEmail = 'said.mohammadaldrin.2025@gmail.com';
+  static const String _developerKoFi = 'ko-fi.com/mayazarrr';
+  static const String _projectRepo = 'https://github.com/YzrSaid/ispatipay';
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -21,11 +29,9 @@ class AboutScreen extends StatelessWidget {
               const SizedBox(height: 28),
               _buildInfoCard(),
               const SizedBox(height: 20),
-              _buildFeaturesCard(),
-              const SizedBox(height: 20),
               _buildUsageCard(),
               const SizedBox(height: 20),
-              _buildGithubButton(context),
+              _buildDeveloperCard(context),
             ],
           ),
         ),
@@ -39,9 +45,7 @@ class AboutScreen extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFFFF4081), Color(0xFFFF6E40)],
-            ),
+            color: AppTheme.accentGreen,
             borderRadius: BorderRadius.circular(14),
           ),
           child: const Icon(Icons.info_rounded, color: Colors.black, size: 24),
@@ -71,11 +75,7 @@ class AboutScreen extends StatelessWidget {
           width: 90,
           height: 90,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [AppTheme.accentGreen, AppTheme.accentCyan],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            color: AppTheme.accentGreen,
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
@@ -85,7 +85,8 @@ class AboutScreen extends StatelessWidget {
               ),
             ],
           ),
-          child: const Icon(Icons.music_note_rounded, color: Colors.black, size: 46),
+          child: const Icon(Icons.music_note_rounded,
+              color: Colors.black, size: 46),
         ),
         const SizedBox(height: 16),
         const Text('ISPATIPAY',
@@ -104,9 +105,9 @@ class AboutScreen extends StatelessWidget {
 
   Widget _buildInfoCard() {
     return _card(
-      title: 'What is Ispatipay?',
-      icon: Icons.help_outline_rounded,
-      iconColor: AppTheme.accentCyan,
+      title: 'About this app',
+      icon: Icons.info_outline_rounded,
+      iconColor: AppTheme.accentGreen,
       content:
           'Ispatipay is a Spotify music downloader and player that works through a Telegram bot. '
           'Paste any Spotify track, album, or playlist link and the music is automatically '
@@ -114,29 +115,10 @@ class AboutScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildFeaturesCard() {
-    return _listCard(
-      title: 'Features',
-      icon: Icons.star_rounded,
-      iconColor: Colors.amber,
-      items: [
-        '🎵 Download individual tracks',
-        '💿 Download full albums',
-        '📋 Download entire playlists',
-        '▶️ Stream music instantly',
-        '🎮 Full playback controls (play, pause, skip)',
-        '🔀 Shuffle & repeat modes',
-        '📱 Clean, modern mobile UI',
-        '📊 Live download progress',
-        '🔧 Configurable Telegram credentials',
-      ],
-    );
-  }
-
   Widget _buildUsageCard() {
     return _listCard(
       title: 'How to Use',
-      icon: Icons.help_rounded,
+      icon: Icons.help_outline_rounded,
       iconColor: AppTheme.accentGreen,
       items: [
         '1. Set up Telegram credentials in Settings',
@@ -148,35 +130,211 @@ class AboutScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildGithubButton(BuildContext context) {
+  Widget _buildDeveloperCard(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.person_rounded, color: AppTheme.accentGreen, size: 18),
+              SizedBox(width: 8),
+              Text(
+                'Developer',
+                style: TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            _developerName,
+            style: TextStyle(
+              color: AppTheme.textPrimary,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Built with a Spotify-inspired look and Telegram-powered workflow.',
+            style: TextStyle(
+              color: AppTheme.textSecondary,
+              fontSize: 13,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 18),
+          _buildProjectRepoTile(),
+          const SizedBox(height: 18),
+          const Text(
+            'Connect with Me',
+            style: TextStyle(
+              color: AppTheme.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.start,
+            spacing: 15,
+            children: [
+              _buildIconLink(
+                tooltip: 'GitHub',
+                icon: Icons.code_rounded,
+                uri: Uri.parse(_developerGithub),
+              ),
+              _buildIconLink(
+                tooltip: 'Portfolio',
+                icon: Icons.language_rounded,
+                uri: Uri.parse(_developerPortfolio),
+              ),
+              _buildIconLink(
+                tooltip: 'Email',
+                icon: Icons.email_rounded,
+                uri: Uri(scheme: 'mailto', path: _developerEmail),
+              ),
+            ],
+          ),
+          const SizedBox(height: 15),
+          const Text(
+            'Treat me to a coffee ☕',
+            style: TextStyle(
+              color: AppTheme.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: () async {
+              final uri = Uri.parse('https://$_developerKoFi');
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            },
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              decoration: BoxDecoration(
+                color: AppTheme.surfaceColor,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppTheme.borderColor),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: AppTheme.textSecondary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.coffee_rounded,
+                        color: AppTheme.textSecondary, size: 18),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Ko-fi',
+                      style: TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const Icon(Icons.open_in_new_rounded,
+                      color: AppTheme.textSecondary, size: 16),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProjectRepoTile() {
     return GestureDetector(
       onTap: () async {
-        final uri = Uri.parse('https://github.com/YzrSaid/ispatipay');
+        final uri = Uri.parse(_projectRepo);
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
         }
       },
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: AppTheme.cardColor,
-          borderRadius: BorderRadius.circular(16),
+          color: AppTheme.surfaceColor,
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppTheme.borderColor),
         ),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Row(
           children: [
-            Icon(Icons.code_rounded, color: AppTheme.textPrimary, size: 20),
-            SizedBox(width: 10),
-            Text('View Source on GitHub',
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: AppTheme.textSecondary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.source_rounded,
+                  color: AppTheme.textSecondary, size: 18),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Project on GitHub',
                 style: TextStyle(
                   color: AppTheme.textPrimary,
-                  fontWeight: FontWeight.bold,
-                )),
-            SizedBox(width: 6),
-            Icon(Icons.open_in_new_rounded, color: AppTheme.textSecondary, size: 16),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const Icon(Icons.open_in_new_rounded,
+                color: AppTheme.textSecondary, size: 16),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIconLink({
+    required String tooltip,
+    required IconData icon,
+    required Uri uri,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: () async {
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          }
+        },
+        child: Container(
+          width: 54,
+          height: 54,
+          decoration: BoxDecoration(
+            color: AppTheme.surfaceColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppTheme.borderColor),
+          ),
+          child: Icon(icon, color: AppTheme.textSecondary, size: 22),
         ),
       ),
     );
